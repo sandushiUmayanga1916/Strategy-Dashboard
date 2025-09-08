@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -8,17 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const timelineData = [
-  { date: "Aug 05", clicks: 300, cost: 400, impressions: 500 },
-  { date: "Aug 06", clicks: 700, cost: 350, impressions: 600 },
-  { date: "Aug 07", clicks: 400, cost: 300, impressions: 450 },
-  { date: "Aug 08", clicks: 780, cost: 450, impressions: 550 },
-  { date: "Aug 09", clicks: 350, cost: 250, impressions: 400 },
-  { date: "Aug 10", clicks: 600, cost: 500, impressions: 650 },
-  { date: "Aug 11", clicks: 900, cost: 600, impressions: 750 },
-];
-
-// Custom Tooltip for LineChart
+// Custom Tooltip
 const CustomLineTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -40,14 +30,47 @@ const CustomLineTooltip = ({ active, payload, label }) => {
 };
 
 function LineChartComp() {
+  const [timelineData, setTimelineData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showClicks, setShowClicks] = useState(true);
   const [showCost, setShowCost] = useState(true);
   const [showImpressions, setShowImpressions] = useState(true);
+
+  useEffect(() => {
+    const fetchTimelineData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          "https://eyqi6vd53z.us-east-2.awsapprunner.com/api/ads/time-performance/3220426249?period=LAST_7_DAYS",
+          {
+            headers: token
+              ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+              : { "Content-Type": "application/json" },
+          }
+        );
+
+        if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
+
+        const data = await response.json();
+        setTimelineData(data); // API returns array
+      } catch (error) {
+        console.error("Failed to fetch timeline data:", error);
+        setTimelineData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTimelineData();
+  }, []);
 
   const labelBaseStyle = {
     cursor: "pointer",
     transition: "color 0.2s, text-decoration 0.2s",
   };
+
+  if (loading) return <p>Loading timeline data...</p>;
+  if (timelineData.length === 0) return <p>No timeline data available.</p>;
 
   return (
     <div className="bg-white text-gray-800 p-4 rounded-lg shadow-sm">
@@ -121,15 +144,9 @@ function LineChartComp() {
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip content={<CustomLineTooltip />} />
 
-          {showClicks && (
-            <Line type="monotone" dataKey="clicks" stroke="#374151" strokeWidth={3} dot={false} />
-          )}
-          {showCost && (
-            <Line type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={3} dot={false} />
-          )}
-          {showImpressions && (
-            <Line type="monotone" dataKey="impressions" stroke="#38bdf8" strokeWidth={3} dot={false} />
-          )}
+          {showClicks && <Line type="monotone" dataKey="clicks" stroke="#374151" strokeWidth={3} dot={false} />}
+          {showCost && <Line type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={3} dot={false} />}
+          {showImpressions && <Line type="monotone" dataKey="impressions" stroke="#38bdf8" strokeWidth={3} dot={false} />}
         </LineChart>
       </ResponsiveContainer>
     </div>

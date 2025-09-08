@@ -1,39 +1,73 @@
 import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Layout from "./components/Layout";
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // Loading state to prevent flash redirect
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      const payload = JSON.parse(atob(token.split(".")[1])); // decode JWT
-      setUser({ name: payload.name, email: payload.email });
-    }
+    const checkToken = () => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+
+      if (token) {
+        try {
+          // Decode JWT to get user info
+          const base64Url = token.split(".")[1];
+          const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split("")
+              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+              .join("")
+          );
+          const userData = JSON.parse(jsonPayload);
+
+          // Save token and user in localStorage
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify(userData));
+          setUser(userData);
+        } catch (err) {
+          console.error("JWT decode error:", err);
+        } finally {
+          // Remove token from URL after setting user
+          window.history.replaceState({}, document.title, "/dashboard");
+          setLoading(false);
+        }
+      } else {
+        // Fallback: check localStorage
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) setUser(JSON.parse(storedUser));
+        setLoading(false);
+      }
+    };
+
+    checkToken();
   }, []);
 
-  const handleLoginSuccess = (jwtToken) => {
-    console.log("JWT Token:", jwtToken); // optional
-    localStorage.setItem("token", jwtToken);
-
-    // decode token payload
-    const payload = JSON.parse(atob(jwtToken.split(".")[1]));
-    setUser({ name: payload.name, email: payload.email });
-  };
-
   const handleLogout = () => {
-    setUser(null);
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
   };
+
+  if (loading) return <div className="text-white text-center mt-20">Loading...</div>;
 
   return (
-    <div>
-      {user ? (
-        <Layout user={user} onLogout={handleLogout} />
-      ) : (
-        <Login onLoginSuccess={handleLoginSuccess} />
-      )}
-    </div>
+    <Router>
+      <Routes>
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/dashboard" /> : <Login />}
+        />
+        <Route
+          path="/dashboard"
+          element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+        />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </Router>
   );
 }

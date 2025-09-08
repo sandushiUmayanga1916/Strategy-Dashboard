@@ -17,7 +17,7 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-function DevicePieChart() {
+function DevicePerformancePie() {
   const [chartDataList, setChartDataList] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSlice, setActiveSlice] = useState(null);
@@ -184,4 +184,4 @@ function DevicePieChart() {
   );
 }
 
-export default DevicePieChart;
+export default DevicePerformancePie;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import MetricCard from "../components/MetricCard";
 import CampaignMetrics from "../components/CampaignMetrics";
 import DevicePieChart from "../components/DevicePieChart";
@@ -9,72 +9,71 @@ import PieChartPerformance from "../components/PieChartPerformance";
 import CampaignPerformanceDetails from "../components/CampaignPerformanceDetails";
 
 export default function GoogleAds({ activeCampaign, period }) {
-  // Simulated dataset (could be fetched from API later)
-  const campaignData = {
-    Viana: {
-      metrics: {
-        impressions: "49.9K",
-        cost: "$1,542.69",
-        clicks: "8.6K",
-        conversionRate: "1.45%",
-        conversions: "123.5",
-        cpc: "$0.34",
-        costPerConv: "$2.23",
-        ctr: "13.55%",
-      },
-    },
-    "Ads - MC": {
-      metrics: {
-        impressions: "88.2K",
-        cost: "$3,012.10",
-        clicks: "15.1K",
-        conversionRate: "2.15%",
-        conversions: "310",
-        cpc: "$0.20",
-        costPerConv: "$1.90",
-        ctr: "12.01%",
-      },
-    },
-    "TCI - New (xxxx)": {
-      metrics: {
-        impressions: "22.3K",
-        cost: "$789.40",
-        clicks: "4.5K",
-        conversionRate: "0.98%",
-        conversions: "45",
-        cpc: "$0.17",
-        costPerConv: "$3.50",
-        ctr: "8.22%",
-      },
-    },
-  };
+  const [metrics, setMetrics] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const data = campaignData[activeCampaign.name]?.metrics || {};
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      if (!activeCampaign?.id) return;
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `https://eyqi6vd53z.us-east-2.awsapprunner.com/api/ads/key-stats/${activeCampaign.id}?period=${period}`,
+          {
+            headers: token
+              ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+              : { "Content-Type": "application/json" },
+          }
+        );
+
+        if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`);
+        const json = await res.json();
+
+        setMetrics({
+          impressions: json.total_impressions?.formatted || "-",
+          cost: json.total_cost?.formatted || "-",
+          clicks: json.total_clicks?.formatted || "-",
+          conversionRate: json.conversion_rate?.formatted || "-",
+          conversions: json.total_conversions?.formatted || "-",
+          cpc: json.avg_cost_per_click?.formatted || "-",
+          costPerConv: json.cost_per_conversion?.formatted || "-",
+          ctr: json.click_through_rate?.formatted || "-",
+        });
+      } catch (err) {
+        console.error("Failed to fetch campaign metrics:", err);
+        setMetrics({});
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMetrics();
+  }, [activeCampaign, period]);
+
+  if (loading) return <p>Loading campaign metrics...</p>;
 
   return (
     <>
-      
-
       {/* Metrics Row 1 */}
       <div className="grid grid-cols-4 gap-4">
-        <MetricCard title="Total Impressions" value={data.impressions} />
-        <MetricCard title="Total Cost" value={data.cost} />
-        <MetricCard title="Total Clicks" value={data.clicks} />
-        <MetricCard title="Conversion Rate" value={data.conversionRate} />
+        <MetricCard title="Total Impressions" value={metrics.impressions} />
+        <MetricCard title="Total Cost" value={metrics.cost} />
+        <MetricCard title="Total Clicks" value={metrics.clicks} />
+        <MetricCard title="Conversion Rate" value={metrics.conversionRate} />
       </div>
 
       {/* Metrics Row 2 */}
       <div className="grid grid-cols-4 gap-4 mt-6">
-        <MetricCard title="Total Conversions" value={data.conversions} />
-        <MetricCard title="Avg. Cost Per Click" value={data.cpc} />
-        <MetricCard title="Cost Per Conv." value={data.costPerConv} />
-        <MetricCard title="Click-Through Rate" value={data.ctr} />
+        <MetricCard title="Total Conversions" value={metrics.conversions} />
+        <MetricCard title="Avg. Cost Per Click" value={metrics.cpc} />
+        <MetricCard title="Cost Per Conv." value={metrics.costPerConv} />
+        <MetricCard title="Click-Through Rate" value={metrics.ctr} />
       </div>
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-[65%_33.5%] gap-6 mt-6">
-        <CampaignMetrics campaign={activeCampaign} />
-        <DevicePieChart campaign={activeCampaign} />
+        <CampaignMetrics campaignId={activeCampaign?.id} />
+        <DevicePieChart campaignId={activeCampaign?.id} />
       </div>
 
       {/* Performance Over Time */}
@@ -84,8 +83,8 @@ export default function GoogleAds({ activeCampaign, period }) {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-[33.5%_65%] gap-6 mt-6">
-        <PieChartPerformance campaign={activeCampaign} />
-        <CampaignPerformanceDetails campaign={activeCampaign} />
+        <PieChartPerformance campaignId={activeCampaign?.id} />
+        <CampaignPerformanceDetails campaignId={activeCampaign?.id} />
       </div>
 
       {/* Keywords & Summary */}

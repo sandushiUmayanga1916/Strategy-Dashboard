@@ -1,93 +1,50 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Download } from "lucide-react";
 
-const keywords = [
-  {
-    keyword: "Viana lipstick",
-    clicks: "23.4 K",
-    impressions: "19.1 K",
-    cpc: "$ 3.5",
-    ctr: "18.28%",
-    cost: "$542.89",
-  },
-  {
-    keyword: "hair treatments products",
-    clicks: "500",
-    impressions: "19.1 K",
-    cpc: "$ 3.5",
-    ctr: "18.28%",
-    cost: "$542.89",
-  },
-  {
-    keyword: "makeup products",
-    clicks: "5.4 K",
-    impressions: "19.1 K",
-    cpc: "$ 3.5",
-    ctr: "18.28%",
-    cost: "$542.89",
-  },
-  {
-    keyword: "beauty products",
-    clicks: "450",
-    impressions: "19.1 K",
-    cpc: "$ 3.5",
-    ctr: "18.28%",
-    cost: "$542.89",
-  },
-  {
-    keyword: "skincare essentials",
-    clicks: "2.1 K",
-    impressions: "15.5 K",
-    cpc: "$ 2.8",
-    ctr: "13.55%",
-    cost: "$434.40",
-  },
-  {
-    keyword: "anti-aging cream",
-    clicks: "1.8 K",
-    impressions: "14.2 K",
-    cpc: "$ 4.2",
-    ctr: "12.68%",
-    cost: "$756.00",
-  },
-  {
-    keyword: "organic cosmetics",
-    clicks: "960",
-    impressions: "12.8 K",
-    cpc: "$ 3.1",
-    ctr: "7.50%",
-    cost: "$297.60",
-  },
-  {
-    keyword: "luxury perfume",
-    clicks: "720",
-    impressions: "11.3 K",
-    cpc: "$ 5.5",
-    ctr: "6.37%",
-    cost: "$396.00",
-  },
-  {
-    keyword: "eyeliner",
-    clicks: "1.2 K",
-    impressions: "10.1 K",
-    cpc: "$ 2.9",
-    ctr: "11.88%",
-    cost: "$348.00",
-  },
-  {
-    keyword: "foundation",
-    clicks: "1.5 K",
-    impressions: "9.8 K",
-    cpc: "$ 3.2",
-    ctr: "12.24%",
-    cost: "$480.00",
-  },
-];
-
 function KeywordTable() {
+  const [keywords, setKeywords] = useState([]);
   const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchKeywords = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          "https://eyqi6vd53z.us-east-2.awsapprunner.com/api/ads/keywords/3220426249?period=LAST_30_DAYS&offset=0&limit=50",
+          {
+            headers: token
+              ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+              : { "Content-Type": "application/json" },
+          }
+        );
+        if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`);
+        const json = await res.json();
+        const transformed = (json.keywords || []).map((k) => ({
+          keyword: k.text,
+          clicks: k.clicks >= 1000 ? `${(k.clicks / 1000).toFixed(1)} K` : k.clicks,
+          impressions: k.impressions >= 1000 ? `${(k.impressions / 1000).toFixed(1)} K` : k.impressions,
+          cpc: `$ ${k.cpc.toFixed(2)}`,
+          ctr: `${k.ctr.toFixed(2)}%`,
+          cost: `$ ${k.cost.toFixed(2)}`,
+        }));
+        setKeywords(transformed);
+      } catch (err) {
+        console.error("Failed to fetch keywords:", err);
+        setKeywords([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchKeywords();
+  }, []);
+
   const displayedKeywords = showAll ? keywords : keywords.slice(0, 4);
   const shouldShowViewMore = keywords.length > 4;
+
+  if (loading) return <p>Loading keywords...</p>;
+  if (!keywords.length) return <p>No keywords data available.</p>;
 
   return (
     <div className="w-full bg-white rounded-2xl p-2 shadow-sm">
@@ -104,60 +61,30 @@ function KeywordTable() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          {/* Table header */}
           <table className="w-full min-w-[600px] table-fixed">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  Keyword
-                </th>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  Clicks
-                </th>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  Impressions
-                </th>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  CPC
-                </th>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  CTR
-                </th>
-                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">
-                  Cost
-                </th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">Keyword</th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">Clicks</th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">Impressions</th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">CPC</th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">CTR</th>
+                <th className="px-6 py-3 text-left text-[18px] font-bold text-black">Cost</th>
               </tr>
             </thead>
           </table>
 
-          {/* Scrollable table body */}
-          <div
-            className={`${
-              showAll ? "max-h-96 overflow-y-auto" : ""
-            } transition-all duration-300`}
-          >
+          <div className={`${showAll ? "max-h-96 overflow-y-auto" : ""} transition-all duration-300`}>
             <table className="w-full min-w-[600px] table-fixed">
               <tbody className="divide-y divide-gray-200">
                 {displayedKeywords.map((row, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.keyword}
-                    </td>
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.clicks}
-                    </td>
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.impressions}
-                    </td>
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.cpc}
-                    </td>
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.ctr}
-                    </td>
-                    <td className="px-6 py-4 text-md text-black font-medium">
-                      {row.cost}
-                    </td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.keyword}</td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.clicks}</td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.impressions}</td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.cpc}</td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.ctr}</td>
+                    <td className="px-6 py-4 text-md text-black font-medium">{row.cost}</td>
                   </tr>
                 ))}
               </tbody>

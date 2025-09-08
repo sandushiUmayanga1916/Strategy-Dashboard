@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   PieChart,
@@ -13,54 +13,15 @@ import {
 } from "recharts";
 import { IoMdArrowDropleft, IoMdArrowDropright } from "react-icons/io";
 
-// Chart Data
-const chartDataList = [
-  {
-    name: "Browser Usage",
-    displayName: "User by Browser Type",
-    type: "bar",
-    data: [
-      { name: "Chrome", value: 89, users: 4450 },
-      { name: "Internet Explorer", value: 70, users: 3500 },
-      { name: "Opera", value: 40, users: 2000 },
-      { name: "Firefox", value: 20, users: 1000 },
-      { name: "Android Webview", value: 18, users: 900 },
-      { name: "Samsung Internet", value: 3, users: 150 },
-      { name: "Firefox", value: 18, users: 900 },
-    ],
-  },
-  {
-    name: "Gender Split",
-    displayName: "User by Gender Type",
-    type: "pie",
-    data: [
-      { name: "Male", value: 20, users: 3000, color: "#1A4752" },
-      { name: "Female", value: 40, users: 2000, color: "#2B889C" },
-      { name: "Unknown", value: 40, users: 2000, color: "#58C3DB" },
-    ],
-  },
-  {
-    name: "Age Groups",
-    displayName: "User by Age Range",
-    type: "bar",
-    data: [
-      { name: "18-24", value: 25, users: 1250 },
-      { name: "25-34", value: 45, users: 2250 },
-      { name: "35-54", value: 20, users: 1000 },
-      { name: "unknown", value: 10, users: 500 },
-    ],
-  },
-];
-
-// Tooltip
+// Custom Tooltip
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const { name, value, users } = payload[0].payload;
     return (
       <div className="bg-white p-2 shadow text-sm text-gray-800 border border-gray-200">
         <p className="font-semibold">{name}</p>
-        <p>Percentage: {value}%</p>
-        <p>Users: {users?.toLocaleString()}</p>
+        {value !== undefined && <p>Percentage/Value: {value}</p>}
+        {users !== undefined && <p>Users: {users.toLocaleString()}</p>}
       </div>
     );
   }
@@ -68,129 +29,157 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 export default function AudienceInsightsCard() {
+  const [chartDataList, setChartDataList] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSlice, setActiveSlice] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+
+        // 1️⃣ Browser Usage
+        const resBrowser = await fetch(
+          "http://eyqi6vd53z.us-east-2.awsapprunner.com/api/analytics/time-series/453831024?metric=totalRevenue&period=7d",
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        const dataBrowser = await resBrowser.json();
+        const transformedBrowser = dataBrowser.map((d) => ({
+          name: `${d.date.slice(4, 6)}/${d.date.slice(6, 8)}`,
+          value: Number(d.value.toFixed(2)),
+          users: Math.round(d.value),
+        }));
+
+        // 2️⃣ Gender Split
+        const resGender = await fetch(
+          "http://eyqi6vd53z.us-east-2.awsapprunner.com/api/analytics/audience-insights/417333460?dimension=userGender&period=30d",
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        const dataGender = await resGender.json();
+        const transformedGender = dataGender.map((d) => ({
+          name: d.value,
+          value: Number(d.percentage.toFixed(2)),
+          users: d.users,
+          color:
+            d.value === "male"
+              ? "#1A4752"
+              : d.value === "female"
+              ? "#2B889C"
+              : "#58C3DB",
+        }));
+
+        // 3️⃣ Age Groups
+        const resAge = await fetch(
+          "http://eyqi6vd53z.us-east-2.awsapprunner.com/api/analytics/audience-insights/417333460?dimension=userAgeBracket&period=7d",
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        const dataAge = await resAge.json();
+        const transformedAge = dataAge.map((d) => ({
+          name: d.value,
+          value: Number(d.percentage.toFixed(2)),
+          users: d.users,
+        }));
+
+        // Set chart data
+        setChartDataList([
+          {
+            name: "Browser Usage",
+            displayName: "User by Browser Type",
+            type: "bar",
+            data: transformedBrowser,
+          },
+          {
+            name: "Gender Split",
+            displayName: "User by Gender Type",
+            type: "pie",
+            data: transformedGender,
+          },
+          {
+            name: "Age Groups",
+            displayName: "User by Age Range",
+            type: "bar",
+            data: transformedAge,
+          },
+        ]);
+      } catch (err) {
+        console.error("Failed to fetch audience insights:", err);
+        setChartDataList([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const currentChart = chartDataList[currentIndex];
 
   const handlePrev = () =>
-    setCurrentIndex((prev) =>
-      prev === 0 ? chartDataList.length - 1 : prev - 1
-    );
+    setCurrentIndex((prev) => (prev === 0 ? chartDataList.length - 1 : prev - 1));
   const handleNext = () =>
-    setCurrentIndex((prev) =>
-      prev === chartDataList.length - 1 ? 0 : prev + 1
-    );
+    setCurrentIndex((prev) => (prev === chartDataList.length - 1 ? 0 : prev + 1));
 
   const renderChart = () => {
+    if (loading) return <p className="text-center">Loading chart data...</p>;
+    if (!currentChart || !currentChart.data || currentChart.data.length === 0)
+      return <p className="text-center">No data available.</p>;
+
     if (currentChart.type === "pie") {
       return (
-        <div className="flex items-center justify-center w-full h-full">
-          <div className="w-2/3 h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={currentChart.data}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={0}
-                  outerRadius={110}
-                  labelLine={false}
-                  onClick={(entry) =>
-                    setActiveSlice(
-                      activeSlice === entry.name ? null : entry.name
-                    )
-                  }
-                  label={({
-                    cx,
-                    cy,
-                    midAngle,
-                    innerRadius,
-                    outerRadius,
-                    index,
-                  }) => {
-                    const radius =
-                      innerRadius + (outerRadius - innerRadius) / 2;
-                    const RADIAN = Math.PI / 180;
-                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                    return (
-                      <text
-                        x={x}
-                        y={y}
-                        fill="white"
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        fontWeight="bold"
-                        fontSize={14}
-                      >
-                        {`${currentChart.data[index].value}%`}
-                      </text>
-                    );
-                  }}
-                >
-                  {currentChart.data.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={entry.color}
-                      opacity={
-                        !activeSlice || activeSlice === entry.name ? 1 : 0.3
-                      }
-                    />
-                  ))}
-                </Pie>
-
-                <Tooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="w-1/3 flex flex-col items-start text-sm">
-            {currentChart.data.map((item, index) => (
-              <div
-                key={index}
-                className="flex items-center mb-2 cursor-pointer"
-                onClick={() =>
-                  setActiveSlice(activeSlice === item.name ? null : item.name)
-                }
-              >
-                <div
-                  className="w-4 h-4 mr-2 rounded"
-                  style={{
-                    backgroundColor: item.color,
-                    opacity:
-                      !activeSlice || activeSlice === item.name ? 1 : 0.3,
-                  }}
-                ></div>
-                <span
-                  className="font-bold"
-                  style={{
-                    color:
-                      !activeSlice || activeSlice === item.name
-                        ? "#000"
-                        : "#888",
-                    textDecoration:
-                      !activeSlice || activeSlice === item.name
-                        ? "none"
-                        : "line-through",
-                  }}
-                >
-                  {item.name}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={currentChart.data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={110}
+              innerRadius={0}
+              labelLine={false}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, index }) => {
+                const radius = innerRadius + (outerRadius - innerRadius) / 2;
+                const RADIAN = Math.PI / 180;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return (
+                  <text
+                    x={x}
+                    y={y}
+                    fill="white"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontWeight="bold"
+                    fontSize={14}
+                  >
+                    {`${currentChart.data[index].value}%`}
+                  </text>
+                );
+              }}
+              onClick={(entry) =>
+                setActiveSlice(activeSlice === entry.name ? null : entry.name)
+              }
+            >
+              {currentChart.data.map((entry, index) => (
+                <Cell
+                  key={index}
+                  fill={entry.color}
+                  opacity={!activeSlice || activeSlice === entry.name ? 1 : 0.3}
+                />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
       );
     } else {
       const gradientId = "grad-tw";
-
       return (
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            layout={
-              currentChart.name === "Browser Usage" ? "vertical" : "horizontal"
-            }
+            layout={currentChart.name === "Browser Usage" ? "vertical" : "horizontal"}
             data={currentChart.data}
             barCategoryGap="40%"
             margin={{ top: 40, right: 40, left: 60, bottom: 40 }}
@@ -219,19 +208,14 @@ export default function AudienceInsightsCard() {
                 <YAxis hide />
               </>
             )}
-
             <Tooltip content={<CustomTooltip />} />
-
             <Bar
               dataKey="value"
               barSize={currentChart.name === "Age Groups" ? 70 : 40}
-              onClick={(entry) =>
-                setActiveSlice(activeSlice === entry.name ? null : entry.name)
-              }
             >
-              {currentChart.data.map((entry, index) => (
+              {currentChart.data.map((entry) => (
                 <Cell
-                  key={index}
+                  key={entry.name}
                   fill={`url(#${gradientId})`}
                   opacity={!activeSlice || activeSlice === entry.name ? 1 : 0.3}
                 />
@@ -244,7 +228,6 @@ export default function AudienceInsightsCard() {
                 fontWeight="bold"
               />
             </Bar>
-
             <defs>
               <linearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="#58C3DB" />
@@ -259,11 +242,10 @@ export default function AudienceInsightsCard() {
 
   return (
     <div className="bg-white text-gray-800 p-6 rounded-lg shadow-sm">
-      {/* Flex container for left and right titles */}
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold mb-2 text-gray-900">Audience Insights</h3>
         <span className="font-semibold text-black text-sm">
-          {currentChart.displayName}
+          {currentChart?.displayName || ""}
         </span>
       </div>
       <hr className="mb-4" />
