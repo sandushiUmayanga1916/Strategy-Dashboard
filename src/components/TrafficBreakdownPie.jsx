@@ -1,142 +1,169 @@
-import React, { useState } from "react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import React, { useEffect, useState, useMemo } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
-const data = [
-  { name: "Organic Search", value: 45, color: "#68d5f3" },
-  { name: "Direct", value: 25, color: "#0b3140" },
-  { name: "Referral", value: 15, color: "#58C3DB" },
-  { name: "Organic Social", value: 10, color: "#9AB4BA" },
-  { name: "Organic Shopping", value: 5, color: "#B8C9CE" },
-];
-
-// ------------------ Custom Tooltip ------------------
+// Custom Tooltip
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
-    const { name, value } = payload[0].payload;
+    const { channel, percentage, sessions, users } = payload[0].payload;
     return (
       <div className="bg-white p-2 rounded shadow text-sm text-gray-800 border border-gray-200">
-        <p className="font-semibold">{name}</p>
-        <p>Value: {value}%</p>
+        <p className="font-semibold">{channel}</p>
+        <p>Sessions: {sessions}</p>
+        <p>Users: {users}</p>
+        <p>Percentage: {percentage.toFixed(2)}%</p>
       </div>
     );
   }
   return null;
 };
 
-// ------------------ Custom Label for Center Text ------------------
-const renderCenterLabel = () => {
-  return (
-    <text
-      x="50%"
-      y="45%"
-      textAnchor="middle"
-      dominantBaseline="middle"
-      className="fill-blue-400 text-xs font-medium"
-    >
-      Majority
-    </text>
-  );
-};
-
-const renderCenterMainLabel = () => {
-  return (
-    <text
-      x="50%"
-      y="55%"
-      textAnchor="middle"
-      dominantBaseline="middle"
-      className="fill-black text-sm font-bold"
-    >
-      Organic Search
-    </text>
-  );
-};
-
-function TrafficBreakdownPie() {
+function TrafficBreakdownPie({ accountId = "417333460", period = "90d" }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeSlice, setActiveSlice] = useState(null);
 
+  // ✅ Memoized colors
+  const colors = useMemo(
+    () => ["#68d5f3", "#0b3140", "#58C3DB", "#9AB4BA", "#B8C9CE"],
+    []
+  );
 
+  useEffect(() => {
+    const fetchTrafficData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // ✅ Get token from localStorage
+        const token =
+          typeof window !== "undefined" && window.localStorage
+            ? localStorage.getItem("token")
+            : null;
+
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `https://eyqi6vd53z.us-east-2.awsapprunner.com/api/analytics/traffic-sources/${accountId}?period=${period}`,
+          { headers }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const json = await response.json();
+        console.log("Traffic API Response:", json);
+
+        // Map API response into chart data
+        const formattedData = json.map((item, index) => ({
+          channel: item.channel,
+          sessions: item.sessions,
+          users: item.users,
+          percentage: item.percentage,
+          value: item.percentage,
+          color: colors[index % colors.length],
+        }));
+
+        setData(formattedData);
+      } catch (err) {
+        console.error("Failed to fetch traffic data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrafficData();
+  }, [accountId, period, colors]);
 
   return (
-    <div className="bg-white p-4 rounded-lg">
-      <div className="border-b-1 border-black pb-2 mb-4">
-        <h3 className="font-semibold text-black">
-          Traffic Breakdown
-        </h3>
-      </div>
+    <div className="bg-white text-gray-800 p-4 rounded-lg shadow-sm border border-gray-300">
+      <h3 className="font-semibold mb-2 text-gray-900">Traffic Breakdown</h3>
+      <hr className="mb-4" />
 
-      <div className="flex flex-col items-center">
-        <ResponsiveContainer width="100%" height={250}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={({ name }) =>
-                activeSlice === name ? 110 : 100
-              }
-              paddingAngle={2}
-              dataKey="value"
-              onClick={(entry) =>
-                setActiveSlice(activeSlice === entry.name ? null : entry.name)
-              }
-            >
-              {data.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.color}
-                  opacity={
-                    !activeSlice || activeSlice === entry.name ? 1 : 0.3
-                  }
-                />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            {/* Center Labels */}
-            <g>
-              {renderCenterLabel()}
-              {renderCenterMainLabel()}
-            </g>
-          </PieChart>
-        </ResponsiveContainer>
-
-        {/* Clickable Legend */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-4 w-full max-w-xs">
-          {data.map((entry, index) => (
-            <div 
-              key={index} 
-              className="flex items-center cursor-pointer select-none"
-              onClick={() =>
-                setActiveSlice(activeSlice === entry.name ? null : entry.name)
-              }
-            >
-              <div
-                className="w-4 h-3 mr-2 flex-shrink-0"
-                style={{ 
-                  backgroundColor: entry.color,
-                  opacity: !activeSlice || activeSlice === entry.name ? 1 : 0.3
-                }}
-              />
-              <span 
-                className="font-medium truncate"
-                style={{
-                  color: !activeSlice || activeSlice === entry.name ? "#000" : "#888",
-                  textDecoration: !activeSlice || activeSlice === entry.name ? "none" : "line-through"
-                }}
-              >
-                {entry.name}
-              </span>
-            </div>
-          ))}
+      {loading ? (
+        <div className="flex justify-center items-center h-64 text-gray-500 font-medium">
+          Loading traffic data...
         </div>
-      </div>
+      ) : error ? (
+        <div className="flex flex-col justify-center items-center h-64">
+          <p className="text-red-500 font-medium mb-2">Error: {error}</p>
+          <p className="text-sm text-gray-500">Check console for details</p>
+        </div>
+      ) : data.length === 0 ? (
+        <div className="flex justify-center items-center h-64 text-gray-500 font-medium">
+          No traffic data available.
+        </div>
+      ) : (
+        <>
+          {/* Pie Chart */}
+          <div className="flex justify-center">
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="channel"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={2}
+                  onClick={(entry) =>
+                    setActiveSlice(activeSlice === entry.channel ? null : entry.channel)
+                  }
+                >
+                  {data.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      opacity={!activeSlice || activeSlice === entry.channel ? 1 : 0.3}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Legend */}
+          <div className="mt-4 text-xs flex flex-wrap justify-center">
+            {data.map((item, index) => (
+              <div
+                key={index}
+                className="flex items-center mr-3 mb-1 cursor-pointer select-none"
+                onClick={() =>
+                  setActiveSlice(activeSlice === item.channel ? null : item.channel)
+                }
+              >
+                <div
+                  className="w-3 h-3 mr-1"
+                  style={{
+                    backgroundColor: item.color,
+                    opacity: !activeSlice || activeSlice === item.channel ? 1 : 0.3,
+                  }}
+                ></div>
+                <span
+                  style={{
+                    color: !activeSlice || activeSlice === item.channel ? "#000" : "#888",
+                    textDecoration:
+                      !activeSlice || activeSlice === item.channel ? "none" : "line-through",
+                  }}
+                >
+                  {item.channel} ({item.percentage.toFixed(1)}%)
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
